@@ -62,7 +62,8 @@ contract Engine is IEngine {
 
     function MintStablecoin(
         address collateralToken,
-        uint256 collateralAmount
+        uint256 collateralAmount,
+        uint256 mintAmount
     ) external 
     greaterThanZero(collateralAmount) 
     allowListedToken(collateralToken) {
@@ -78,13 +79,45 @@ contract Engine is IEngine {
 
     }
 
-    function redeemCollateral(address collateralToken, uint256 collateralAmount) external {}
+    function redeemCollateralForStablecoin(
+        address collateralToken, 
+        uint256 collateralAmount, 
+        uint256 stablecoinAmount
+    ) external {
 
-    function burnStablecoin() external {}
+    }
 
-    function liquidate() external {}
+    function redeemCollateral(
+        address collateralToken, 
+        uint256 collateralAmount
+    ) external {
 
-    function getHealthFactor() external view {}
+    }
 
+    function burnStablecoin(
+        uint256 amount
+    ) external {
+
+    }
+
+    function liquidateEntirePosition(
+        address user
+    ) external {
+
+    }
+
+    function liquidatePartialPosition(
+        address user, 
+        address collateralToken, 
+        uint256 amountToCover
+    ) external {
+
+    }
+
+    function getHealthFactor(
+        address user
+    ) external view {
+        
+    }
 
 }
