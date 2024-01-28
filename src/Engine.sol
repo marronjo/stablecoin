@@ -30,34 +30,37 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 /**
- * @title Stabelcoin Algorithm Engine
+ * @title Stablecoin Algorithm Engine
  * @author Joe Marron
  * 
  * This engine is designed to keep the stablecoin at the price of 1$ 
  */
 contract Engine is IEngine {
 
+    //ERRORS
+    error Engine__MintingError();
+    error Engine__UnhealthyPosition();
     error Engine__ValueCannotBeZero();
     error Engine__TokenNotAllowListed();
     error Engine__ErrorDepositingTokens();
     error Engine__MintingThresholdBreach();
-    error Engine__MintingError();
 
-    struct TokenData{
-        AggregatorV3Interface priceFeed;
-        bool allowed;
-    }
-
+    //STATE VARIABLES
     mapping(address user => mapping(address token => uint256 amount)) private s_collateral;
 
-    mapping(address token => TokenData tokenData) private s_tokens;
+    mapping(address token => AggregatorV3Interface priceFeed) private s_priceFeeds;
 
     mapping(address user => uint256 amount) private s_mintedCoins;
+
+    mapping(address token => bool allowed) private s_allowed;
+
+    address[] private s_supportedTokens;
 
     uint private immutable THRESHOLD = 70;
 
     Stablecoin public immutable i_stablecoin;
 
+    //MODIFIERS
     modifier greaterThanZero(uint256 amount){
         if(amount == 0){
             revert Engine__ValueCannotBeZero();
@@ -66,16 +69,18 @@ contract Engine is IEngine {
     }
 
     modifier allowListedToken(address token){
-        if(s_tokens[token].allowed == false){
+        if(!s_allowed[token]){
             revert Engine__TokenNotAllowListed();
         }
         _;
     }
 
+    //FUNCTIONS
     constructor(address stablecoinAddress){
         i_stablecoin = Stablecoin(stablecoinAddress);
     }
 
+    //EXTERNAL FUNCTIONS
     function mintStablecoin(
         address collateralToken,
         uint256 collateralAmount,
@@ -83,7 +88,7 @@ contract Engine is IEngine {
     ) external 
     greaterThanZero(collateralAmount) {
         _addCollateralToUserPosition(collateralToken, collateralAmount);
-        _mintStablecoinToUser(mintAmount);
+        _mintStablecoinToUser(msg.sender, mintAmount);
     }
 
     function depositCollateral(
@@ -135,6 +140,17 @@ contract Engine is IEngine {
 
     }
 
+    function addAllowListedToken(address token, address priceFeed) external {
+        s_allowed[token] = true;
+        s_supportedTokens.push(token);
+        s_priceFeeds[token] = AggregatorV3Interface(priceFeed);
+    }
+
+    function removeTokenAllowance(address token) external {
+        s_allowed[token] = false;  
+    }
+
+    //PRIVATE FUNCTIONS
     function _addCollateralToUserPosition(
         address collateralToken,
         uint256 collateralAmount
@@ -154,14 +170,40 @@ contract Engine is IEngine {
         
     }
 
-    function _mintStablecoinToUser(uint256 mintAmount) private {
-        s_mintedCoins[msg.sender] += mintAmount;
-        bool mintSuccess = i_stablecoin.mint(msg.sender, mintAmount);
+    function _mintStablecoinToUser(address user, uint256 mintAmount) private {
+        s_mintedCoins[user] += mintAmount;
+        if(!_checkPositionHealth(user)){
+            revert Engine__UnhealthyPosition();
+        }
+        bool mintSuccess = i_stablecoin.mint(user, mintAmount);
         if(!mintSuccess){
             revert Engine__MintingError();
         }
     }
 
+    function _checkPositionHealth(address user) private view returns(bool) {
+        uint256 totalCollateral;
+        for(uint256 index = 0; index < s_supportedTokens.length; index++){
+            address token = s_supportedTokens[index];
+            uint256 userCollateralPosition = s_collateral[user][token];
+            if(userCollateralPosition > 0){
+                (,int256 tokenPrice,,,) = s_priceFeeds[token].latestRoundData();
+                uint256 normalisedTokenPrice = uint256(tokenPrice * 10e10);
+                totalCollateral += (normalisedTokenPrice * userCollateralPosition) / 1e18;
+            }
+        }
+        if(totalCollateral == 0 || _calculatePositionThreshold(totalCollateral) > 70){
+            return false;
+        }
+        return true;
+    }
+
+    function _calculatePositionThreshold(uint256 totalCollateral) private view returns(uint256) {
+        uint256 mintedCoins = s_mintedCoins[msg.sender];
+        return (mintedCoins * 100) / totalCollateral;
+    }
+
+    //VIEW FUNCTIONS
     function getUserStablecoinPosition(address user) public view returns(uint256) {
         return s_mintedCoins[user];
     }
