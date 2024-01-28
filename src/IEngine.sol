@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 
 interface IEngine {
 
-    function MintStablecoin(address collateralToken, uint256 collateralAmount, uint256 mintAmount) external; 
+    function mintStablecoin(address collateralToken, uint256 collateralAmount, uint256 mintAmount) external; 
 
     function depositCollateral(address collateralToken, uint256 collateralAmount) external;
 
