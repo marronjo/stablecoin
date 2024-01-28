@@ -17,8 +17,6 @@ contract Stablecoin is ERC20Burnable, Ownable {
     error Stablecoin__AmountMustBeGreaterThanZero();
     error Stablecoin__BurnAmountExceedsBalance();
     error Stablecoin__NotZeroAddress();
-
-    address[] private minters;
     
     constructor() ERC20("Stablecoin", "STB") Ownable(msg.sender) {}
 
@@ -41,11 +39,6 @@ contract Stablecoin is ERC20Burnable, Ownable {
             revert Stablecoin__AmountMustBeGreaterThanZero();
         }
         _mint(_to, _amount);
-        minters.push(_to);
         return true;
-    }
-
-    function getMinters() external view returns(address[] memory){
-        return minters;
     }
 }
