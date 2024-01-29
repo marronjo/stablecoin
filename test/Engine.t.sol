@@ -8,6 +8,7 @@ import {Engine} from "../src/Engine.sol";
 import {Stablecoin} from "../src/Stablecoin.sol";
 import {TokenMock} from "./mock/TokenMock.sol";
 import {AggregatorV3Mock} from "./mock/AggregatorV3Mock.sol";
+import {StablecoinMock} from "./mock/StablecoinMock.sol";
 
 contract EngineTest is Test {
 
@@ -15,6 +16,8 @@ contract EngineTest is Test {
     Stablecoin private stablecoin;
     TokenMock private collateralTokenMock;
     AggregatorV3Mock private aggregatorV3Mock;
+
+    Engine private engineMock;
 
     address private owner = makeAddr("owner");
     address private user = makeAddr("user");
@@ -26,6 +29,10 @@ contract EngineTest is Test {
 
         collateralTokenMock = new TokenMock();
         aggregatorV3Mock = new AggregatorV3Mock(1000);
+
+        StablecoinMock stablecoinMock = new StablecoinMock();
+        engineMock = new Engine(address(stablecoinMock));
+        stablecoinMock.transferOwnership(address(engineMock));
 
         //allow engine to mint new coins on stablecoin contract
         stablecoin.transferOwnership(address(engine));
@@ -55,8 +62,8 @@ contract EngineTest is Test {
         //mintAmount must be less than 2**249 becuase it is multiplied by 100 in the health factor calculations
         //if mintAmount is 2**250 or more the uint256 will overflow during calculation
         //e.g. 
-        // 2**249 * 100 < MAX_INT (uint256(-1))
-        // 2**250 * 100 > MAX_INT (uint256(-1))
+        // 2**249 * 100 < MAX_INT 
+        // 2**250 * 100 > MAX_INT
         vm.assume(mintAmount >= 700 && mintAmount < 2**249);
 
         //token mock price = 1000 USD
@@ -75,5 +82,27 @@ contract EngineTest is Test {
     function test_mintStablecoinZeroCollateral() public {
         vm.expectRevert(Engine.Engine__ValueCannotBeZero.selector);
         engine.mintStablecoin(address(1), 0, 100);
+    }
+
+    function test_mintStablecoinDepositFailed() public {
+        collateralTokenMock.setTransferFailed();
+        vm.expectRevert(Engine.Engine__DepositFailed.selector);
+        engine.mintStablecoin(address(collateralTokenMock), 100, 50);
+    }
+
+    function test_mintStablecoinMintFailed() public {
+        aggregatorV3Mock.setLatestPrice(1000);
+        engineMock.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+
+        //mint 500 tokens, 50% LTV ratio
+        uint256 mintAmount = 500;
+        
+        // 1 token = 1000 USD total colateral
+        uint256 collateralAmount = 1;
+
+        vm.expectRevert(Engine.Engine__MintingError.selector);
+
+        vm.prank(user);
+        engineMock.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
     }
 }
