@@ -56,7 +56,7 @@ contract Engine is IEngine {
 
     address[] private s_supportedTokens;
 
-    uint private immutable THRESHOLD = 70;
+    uint private immutable LTV_THRESHOLD = 70;
 
     Stablecoin public immutable i_stablecoin;
 
@@ -181,6 +181,14 @@ contract Engine is IEngine {
         }
     }
 
+    /**
+     * Method used to check if users position is in a healthy state.
+     * The safe Loan To Value (LTV) ratio for this protocol is <70% 
+     * e.g. The user can only mint strictly less than 70% of their collateral
+     * 
+     * @param user address used for position check
+     * @return true if user's position is healthy, false otherwise
+     */
     function _checkPositionHealth(address user) private view returns(bool) {
         uint256 totalCollateral;
         for(uint256 index = 0; index < s_supportedTokens.length; index++){
@@ -192,18 +200,30 @@ contract Engine is IEngine {
                 totalCollateral += (normalisedTokenPrice * userCollateralPosition) / 1e18;
             }
         }
-        if(totalCollateral == 0 || _calculatePositionThreshold(totalCollateral) >= 70){
+        if(totalCollateral == 0 || _calculatePositionThreshold(totalCollateral) >= LTV_THRESHOLD){
             return false;
         }
         return true;
     }
 
+    /**
+     * Calculate mintAmount as a percentage of users total collateral 
+     * 
+     * @param totalCollateral total value of users collateral position
+     * @return ltv ratio of mintAmount / collateral as a percentage
+     */
     function _calculatePositionThreshold(uint256 totalCollateral) private view returns(uint256) {
         uint256 mintedCoins = s_mintedCoins[msg.sender];
         return (mintedCoins * 100) / totalCollateral;
     }
 
     //VIEW FUNCTIONS
+    /**
+     * Used to fetch user's stablecoin position stored in Engine contract
+     * 
+     * @param user position to check
+     * @return stablecoin position of given user
+     */
     function getUserStablecoinPosition(address user) public view returns(uint256) {
         return s_mintedCoins[user];
     }
