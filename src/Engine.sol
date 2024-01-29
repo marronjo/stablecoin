@@ -39,10 +39,10 @@ contract Engine is IEngine {
 
     //ERRORS
     error Engine__MintingError();
+    error Engine__DepositFailed();
     error Engine__UnhealthyPosition();
     error Engine__ValueCannotBeZero();
     error Engine__TokenNotAllowListed();
-    error Engine__ErrorDepositingTokens();
     error Engine__MintingThresholdBreach();
 
     //STATE VARIABLES
@@ -158,7 +158,7 @@ contract Engine is IEngine {
         s_collateral[msg.sender][collateralToken] += collateralAmount;
         bool successfulDeposit = IERC20(collateralToken).transferFrom(msg.sender, address(this), collateralAmount);
         if(!successfulDeposit){
-            revert Engine__ErrorDepositingTokens();
+            revert Engine__DepositFailed();
         }
     }
 
