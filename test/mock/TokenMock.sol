@@ -33,37 +33,37 @@ contract TokenMock is IERC20 {
     }
 
     function balanceOf(
-        address account
+        address /*account*/
     ) external view override returns (uint256) {
         return balance;
     }
 
     function transfer(
-        address to,
-        uint256 amount
-    ) external override returns (bool) {
+        address /*to*/,
+        uint256 /*amount*/
+    ) external override pure returns (bool) {
         return true;
     }
 
     function allowance(
-        address owner,
-        address spender
-    ) external view override returns (uint256) {
+        address /*owner*/,
+        address /*spender*/
+    ) external pure override returns (uint256) {
         return 0;
     }
 
     function approve(
-        address spender,
-        uint256 amount
-    ) external override returns (bool) {
+        address /*spender*/,
+        uint256 /*amount*/
+    ) external override view returns (bool) {
         return approved;
     }
 
     function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external override returns (bool) {
+        address /*from*/,
+        address /*to*/,
+        uint256 /*amount*/
+    ) external override pure returns (bool) {
         return true;
     }
 }
