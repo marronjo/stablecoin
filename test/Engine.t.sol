@@ -32,14 +32,11 @@ contract EngineTest is Test {
         vm.stopBroadcast();
     }
 
-    // function testFuzz_mintStablecoinNoCollateral(uint256 collateralAmount, uint256 mintAmount) public {
-    //     vm.assume(mintAmount > 0 && collateralAmount > 0);
-    //     vm.prank(user);
-    //     engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
-    //     assertEq(mintAmount, engine.getUserStablecoinPosition(user));
-    // }
+    function testFuzz_sucessfulMintHealthyPosition(uint256 mintAmount) public {
+        //must be less than 70% tlv to succeed
+        //699 tokens or less / 1000USD collateral
+        vm.assume(mintAmount < 700 && mintAmount > 0);
 
-    function test_sucessfulMintHealthyPosition() public {
         //token mock price = 1000 USD
         aggregatorV3Mock.setLatestPrice(1000);
         engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
@@ -47,12 +44,32 @@ contract EngineTest is Test {
         // 1 token = 1000 USD total colateral
         uint256 collateralAmount = 1;
 
-        // mint 700 tokens = 70% LTV ratio
-        uint256 mintAmount = 700; 
-
         vm.prank(user);
         engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
         assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+    }
+
+    function testFuzz_failedMintUnhealthyPosition(uint256 mintAmount) public {
+        //must be 70% tlv or higher to revert
+        //700 tokens or more / 1000USD collateral
+        //mintAmount must be less than 2**249 becuase it is multiplied by 100 in the health factor calculations
+        //if mintAmount is 2**250 or more the uint256 will overflow during calculation
+        //e.g. 
+        // 2**249 * 100 < MAX_INT (uint256(-1))
+        // 2**250 * 100 > MAX_INT (uint256(-1))
+        vm.assume(mintAmount >= 700 && mintAmount < 2**249);
+
+        //token mock price = 1000 USD
+        aggregatorV3Mock.setLatestPrice(1000);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        // 1 token = 1000 USD total colateral
+        uint256 collateralAmount = 1;
+
+        vm.expectRevert(Engine.Engine__UnhealthyPosition.selector);
+
+        vm.prank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
     }
 
     function test_mintStablecoinZeroCollateral() public {
