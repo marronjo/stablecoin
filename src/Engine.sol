@@ -188,11 +188,11 @@ contract Engine is IEngine {
             uint256 userCollateralPosition = s_collateral[user][token];
             if(userCollateralPosition > 0){
                 (,int256 tokenPrice,,,) = s_priceFeeds[token].latestRoundData();
-                uint256 normalisedTokenPrice = uint256(tokenPrice * 10e10);
+                uint256 normalisedTokenPrice = uint256(tokenPrice * 1e10);
                 totalCollateral += (normalisedTokenPrice * userCollateralPosition) / 1e18;
             }
         }
-        if(totalCollateral == 0 || _calculatePositionThreshold(totalCollateral) > 70){
+        if(totalCollateral == 0 || _calculatePositionThreshold(totalCollateral) >= 70){
             return false;
         }
         return true;
