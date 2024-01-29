@@ -10,10 +10,12 @@ contract TokenMock is IERC20 {
 
     uint256 private balance;
     bool private approved;
+    bool private transferStatus;
 
     constructor(){
         balance = MAX_INT;
         approved = true;
+        transferStatus = true;
     }
 
     function setMaxBalance() external {
@@ -30,6 +32,14 @@ contract TokenMock is IERC20 {
 
     function setApproveSuccess() external {
         approved = true;
+    }
+
+    function setTransferFailed() external {
+        transferStatus = false;
+    }
+
+    function setTransferSuccess() external {
+        transferStatus = true;
     }
 
     function balanceOf(
@@ -63,7 +73,7 @@ contract TokenMock is IERC20 {
         address /*from*/,
         address /*to*/,
         uint256 /*amount*/
-    ) external override pure returns (bool) {
-        return true;
+    ) external override view returns (bool) {
+        return transferStatus;
     }
 }
