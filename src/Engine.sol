@@ -86,7 +86,9 @@ contract Engine is IEngine {
         uint256 collateralAmount,
         uint256 mintAmount
     ) external 
-    greaterThanZero(collateralAmount) {
+    greaterThanZero(collateralAmount) 
+    allowListedToken(collateralToken)
+    {
         _addCollateralToUserPosition(collateralToken, collateralAmount);
         _mintStablecoinToUser(msg.sender, mintAmount);
     }
@@ -95,7 +97,9 @@ contract Engine is IEngine {
         address collateralToken,
         uint256 collateralAmount
     ) external 
-    greaterThanZero(collateralAmount) {
+    greaterThanZero(collateralAmount) 
+    allowListedToken(collateralToken)
+    {
         _addCollateralToUserPosition(collateralToken, collateralAmount);
     }
 
@@ -226,5 +230,9 @@ contract Engine is IEngine {
      */
     function getUserStablecoinPosition(address user) public view returns(uint256) {
         return s_mintedCoins[user];
+    }
+
+    function getUserCollateralPosition(address user, address token) public view returns(uint256) {
+        return s_collateral[user][token];
     }
 }

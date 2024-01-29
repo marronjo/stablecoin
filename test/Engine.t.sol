@@ -85,6 +85,7 @@ contract EngineTest is Test {
     }
 
     function test_mintStablecoinDepositFailed() public {
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
         collateralTokenMock.setTransferFailed();
         vm.expectRevert(Engine.Engine__DepositFailed.selector);
         engine.mintStablecoin(address(collateralTokenMock), 100, 50);
@@ -104,5 +105,15 @@ contract EngineTest is Test {
 
         vm.prank(user);
         engineMock.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+    }
+
+    function test_addCollateralSuccess() public {
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        uint256 collateralAmount = 1;
+
+        vm.prank(user);
+        engine.depositCollateral(address(collateralTokenMock), collateralAmount);
+        assertEq(collateralAmount, engine.getUserCollateralPosition(user, address(collateralTokenMock)));
     }
 }
