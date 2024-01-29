@@ -32,7 +32,7 @@ contract StablecoinMock is ERC20Burnable, Ownable {
         super.burn(_amount);
     }
 
-    function mint(address _to, uint256 _amount) external onlyOwner returns(bool) {
+    function mint(address /*_to*/, uint256 /*_amount*/) external view onlyOwner returns(bool) {
         return false;
     }
 }
