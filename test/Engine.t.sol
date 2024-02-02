@@ -162,4 +162,29 @@ contract EngineTest is Test {
         engine.depositCollateral(address(collateralTokenMock), collateralAmount);
         assertEq(collateralAmount, engine.getUserCollateralPosition(user, address(collateralTokenMock)));
     }
+
+    function test_burnStablecoinSuccess() public {
+       uint256 mintAmount = 20000;
+
+        aggregatorV3Mock.setLatestPrice(300);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        uint256 collateralAmount = 100;
+
+        vm.startPrank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+        uint256 burnAmount = mintAmount;
+
+        assertEq(mintAmount, stablecoin.balanceOf(user));
+
+        stablecoin.approve(address(engine), burnAmount);
+
+        engine.redeemCollateralForStablecoin(address(collateralTokenMock), collateralAmount, burnAmount);
+        vm.stopPrank();
+
+        assertEq(0, engine.getUserStablecoinPosition(user));
+        assertEq(0, engine.getUserCollateralPosition(user, address(collateralTokenMock)));
+    }
 }
