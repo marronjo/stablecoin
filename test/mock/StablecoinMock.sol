@@ -18,8 +18,14 @@ contract StablecoinMock is ERC20Burnable, Ownable {
     error Stablecoin__BurnAmountExceedsBalance();
     error Stablecoin__NotZeroAddress();
     error Stablecoin__MintError();
+
+    bool private transferFromStatus;
+    bool private mintStatus;
     
-    constructor() ERC20("Stablecoin", "STB") Ownable(msg.sender) {}
+    constructor() ERC20("Stablecoin", "STB") Ownable(msg.sender) {
+        transferFromStatus = true;
+        mintStatus = true;
+    }
 
     function burn(uint256 _amount) public override onlyOwner {
         uint256 balance = balanceOf(msg.sender);
@@ -32,7 +38,19 @@ contract StablecoinMock is ERC20Burnable, Ownable {
         super.burn(_amount);
     }
 
+    function setMintStatus(bool status) public {
+        mintStatus = status;
+    }
+
     function mint(address /*_to*/, uint256 /*_amount*/) external view onlyOwner returns(bool) {
-        return false;
+        return mintStatus;
+    }
+
+    function setTransferFromStatus(bool status) public {
+        transferFromStatus = status;
+    }
+
+    function transferFrom(address /*from*/, address /*to*/, uint256 /*amount*/) override public view returns(bool) {
+        return transferFromStatus;
     }
 }
