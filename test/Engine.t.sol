@@ -17,6 +17,9 @@ contract EngineTest is Test {
     TokenMock private collateralTokenMock;
     AggregatorV3Mock private aggregatorV3Mock;
 
+    TokenMock private collateralTokenMock2;
+    AggregatorV3Mock private aggregatorV3Mock2;
+
     Engine private engineMock;
 
     address private owner = makeAddr("owner");
@@ -29,6 +32,9 @@ contract EngineTest is Test {
 
         collateralTokenMock = new TokenMock();
         aggregatorV3Mock = new AggregatorV3Mock(1000);
+
+        collateralTokenMock2 = new TokenMock();
+        aggregatorV3Mock2 = new AggregatorV3Mock(50);
 
         StablecoinMock stablecoinMock = new StablecoinMock();
         engineMock = new Engine(address(stablecoinMock));
@@ -54,6 +60,36 @@ contract EngineTest is Test {
         vm.prank(user);
         engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
         assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+    }
+
+    function test_sucessfulMintHealthyPositionMultipleTokens() public {
+        //token mock price = 1000 USD
+        aggregatorV3Mock.setLatestPrice(1000);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        engine.addAllowListedToken(address(collateralTokenMock2), address(aggregatorV3Mock2));
+        
+        uint256 mintAmount = 600;
+
+        // 1 token = 1000 USD total colateral
+        uint256 collateralAmount = 1;
+
+        vm.prank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+    }
+
+    function test_failedMintZeroCollateral() public {
+        uint256 mintAmount = 600;
+
+        aggregatorV3Mock.setLatestPrice(0);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        uint256 collateralAmount = 1;
+
+        vm.expectRevert(Engine.Engine__UnhealthyPosition.selector);
+
+        vm.prank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
     }
 
     function testFuzz_failedMintUnhealthyPosition(uint256 mintAmount) public {
@@ -105,6 +141,16 @@ contract EngineTest is Test {
 
         vm.prank(user);
         engineMock.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+    }
+
+    function test_removeTokenAllowance() public {
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        engine.removeTokenAllowance(address(collateralTokenMock));
+       
+        vm.expectRevert(Engine.Engine__TokenNotAllowListed.selector);
+
+        vm.prank(user);
+        engine.mintStablecoin(address(collateralTokenMock), 1, 100);
     }
 
     function test_addCollateralSuccess() public {
