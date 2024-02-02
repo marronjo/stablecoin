@@ -21,6 +21,7 @@ contract EngineTest is Test {
     AggregatorV3Mock private aggregatorV3Mock2;
 
     Engine private engineMock;
+    StablecoinMock private stablecoinMock;
 
     address private owner = makeAddr("owner");
     address private user = makeAddr("user");
@@ -36,7 +37,7 @@ contract EngineTest is Test {
         collateralTokenMock2 = new TokenMock();
         aggregatorV3Mock2 = new AggregatorV3Mock(50);
 
-        StablecoinMock stablecoinMock = new StablecoinMock();
+        stablecoinMock = new StablecoinMock();
         engineMock = new Engine(address(stablecoinMock));
         stablecoinMock.transferOwnership(address(engineMock));
 
@@ -136,6 +137,8 @@ contract EngineTest is Test {
         
         // 1 token = 1000 USD total colateral
         uint256 collateralAmount = 1;
+
+        stablecoinMock.setMintStatus(false);
 
         vm.expectRevert(Engine.Engine__MintingError.selector);
 
@@ -258,6 +261,32 @@ contract EngineTest is Test {
         vm.expectRevert(Engine.Engine__WithdrawalFailed.selector);
 
         engine.redeemCollateralForStablecoin(address(collateralTokenMock), withdrawalAmount, burnAmount);
+        vm.stopPrank();
+    }
+
+    function test_burnStablecoinFailedBurnTransferError() public {
+       uint256 mintAmount = 20000;
+
+        aggregatorV3Mock.setLatestPrice(300);
+        engineMock.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        uint256 collateralAmount = 100;
+
+        stablecoinMock.setMintStatus(true);
+
+        vm.startPrank(user);
+        engineMock.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engineMock.getUserStablecoinPosition(user));
+
+        uint256 burnAmount = mintAmount;
+
+        stablecoinMock.approve(address(engineMock), burnAmount);
+
+        stablecoinMock.setTransferFromStatus(false);
+
+        vm.expectRevert(Engine.Engine__BurnTransferFailed.selector);
+
+        engineMock.redeemCollateralForStablecoin(address(collateralTokenMock), collateralAmount, burnAmount);
         vm.stopPrank();
     }
 }
