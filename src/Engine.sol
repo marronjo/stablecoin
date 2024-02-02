@@ -40,10 +40,12 @@ contract Engine is IEngine {
     //ERRORS
     error Engine__MintingError();
     error Engine__DepositFailed();
+    error Engine__WithdrawalFailed();
     error Engine__UnhealthyPosition();
     error Engine__ValueCannotBeZero();
+    error Engine__BurnTransferFailed();
     error Engine__TokenNotAllowListed();
-    error Engine__MintingThresholdBreach();
+    error Engine__WithdrawalLimitExceeded();
 
     //STATE VARIABLES
     mapping(address user => mapping(address token => uint256 amount)) private s_collateral;
@@ -106,16 +108,21 @@ contract Engine is IEngine {
     function redeemCollateralForStablecoin(
         address collateralToken, 
         uint256 collateralAmount, 
-        uint256 stablecoinAmount
-    ) external {
-
+        uint256 burnAmount
+    ) external 
+    //allowListedToken(collateralToken) : allow list only required for deposit
+    greaterThanZero(collateralAmount) 
+    greaterThanZero(burnAmount) 
+    {
+        _burnStablecoinForUser(msg.sender, burnAmount);
+        _removeCollateralFromUserPosition(collateralToken, collateralAmount);
     }
 
     function redeemCollateral(
         address collateralToken, 
         uint256 collateralAmount
     ) external {
-
+        _removeCollateralFromUserPosition(collateralToken, collateralAmount);
     }
 
     function burnStablecoin(
@@ -166,12 +173,24 @@ contract Engine is IEngine {
         }
     }
 
-    function _checkMintTokenThreshold(
+    function _removeCollateralFromUserPosition(
         address collateralToken,
-        uint256 collateralAmount,
-        uint256 mintAmount
+        uint256 collateralAmount
     ) private {
+        uint256 userCollateral = s_collateral[msg.sender][collateralToken];
+        if(userCollateral < collateralAmount){
+            revert Engine__WithdrawalLimitExceeded();
+        }
+        s_collateral[msg.sender][collateralToken] -= collateralAmount;
+
+        if(!_checkPositionHealth(msg.sender)){
+            revert Engine__UnhealthyPosition();
+        }
         
+        bool successfulWithdrawal = IERC20(collateralToken).transferFrom(address(this), msg.sender, collateralAmount);
+        if(!successfulWithdrawal){
+            revert Engine__WithdrawalFailed();
+        }
     }
 
     function _mintStablecoinToUser(address user, uint256 mintAmount) private {
@@ -183,6 +202,16 @@ contract Engine is IEngine {
         if(!mintSuccess){
             revert Engine__MintingError();
         }
+    }
+
+    function _burnStablecoinForUser(address user, uint256 burnAmount) private {
+        s_mintedCoins[user] -= burnAmount;
+        i_stablecoin.approve(address(this), burnAmount);
+        bool transferSuccess = i_stablecoin.transferFrom(msg.sender, address(this), burnAmount);
+        if(!transferSuccess){
+            revert Engine__BurnTransferFailed();
+        }
+        i_stablecoin.burn(burnAmount);
     }
 
     /**
@@ -204,7 +233,9 @@ contract Engine is IEngine {
                 totalCollateral += (normalisedTokenPrice * userCollateralPosition) / 1e18;
             }
         }
-        if(totalCollateral == 0 || _calculatePositionThreshold(totalCollateral) >= LTV_THRESHOLD){
+        uint256 mintedCoins = s_mintedCoins[msg.sender];
+        if((totalCollateral == 0 && mintedCoins != 0) || 
+        _calculatePositionThreshold(totalCollateral, mintedCoins) >= LTV_THRESHOLD){
             return false;
         }
         return true;
@@ -216,8 +247,10 @@ contract Engine is IEngine {
      * @param totalCollateral total value of users collateral position
      * @return ltv ratio of mintAmount / collateral as a percentage
      */
-    function _calculatePositionThreshold(uint256 totalCollateral) private view returns(uint256) {
-        uint256 mintedCoins = s_mintedCoins[msg.sender];
+    function _calculatePositionThreshold(uint256 totalCollateral, uint256 mintedCoins) private pure returns(uint256) {
+        if(mintedCoins == 0 && totalCollateral == 0){
+            return 0;
+        }
         return (mintedCoins * 100) / totalCollateral;
     }
 
