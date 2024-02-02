@@ -187,4 +187,77 @@ contract EngineTest is Test {
         assertEq(0, engine.getUserStablecoinPosition(user));
         assertEq(0, engine.getUserCollateralPosition(user, address(collateralTokenMock)));
     }
+
+    function test_failedBurnWithdrawalLargerThanCollateral() public {
+        uint256 mintAmount = 20000;
+
+        aggregatorV3Mock.setLatestPrice(100);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        uint256 collateralAmount = 300;
+
+        uint256 burnAmount = mintAmount;
+
+        vm.startPrank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+        uint256 withdrawalAmount = collateralAmount * 10;
+
+        stablecoin.approve(address(engine), burnAmount);
+
+        vm.expectRevert(Engine.Engine__WithdrawalLimitExceeded.selector);
+
+        engine.redeemCollateralForStablecoin(address(collateralTokenMock), withdrawalAmount, mintAmount);
+        vm.stopPrank();
+    }
+
+    function test_failedBurnUnhealthyPosition() public {
+        uint256 mintAmount = 20000;
+
+        aggregatorV3Mock.setLatestPrice(1);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        uint256 collateralAmount = 30000;
+
+        uint256 burnAmount = 5000;
+        uint256 withdrawalAmount = 10000;
+
+        //position after burn = 15000 / 15000 = 100% LTV which is not allowed
+
+        vm.startPrank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+        stablecoin.approve(address(engine), burnAmount);
+
+        vm.expectRevert(Engine.Engine__UnhealthyPosition.selector);
+
+        engine.redeemCollateralForStablecoin(address(collateralTokenMock), withdrawalAmount, burnAmount);
+        vm.stopPrank();
+    }
+
+    function test_failedBurnCollateralTransferFailed() public {
+        uint256 mintAmount = 20000;
+
+        aggregatorV3Mock.setLatestPrice(1);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        uint256 collateralAmount = 30000;
+
+        uint256 burnAmount = 5000;
+        uint256 withdrawalAmount = 5000;
+
+        vm.startPrank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+        stablecoin.approve(address(engine), burnAmount);
+        collateralTokenMock.setTransferFailed();
+
+        vm.expectRevert(Engine.Engine__WithdrawalFailed.selector);
+
+        engine.redeemCollateralForStablecoin(address(collateralTokenMock), withdrawalAmount, burnAmount);
+        vm.stopPrank();
+    }
 }
