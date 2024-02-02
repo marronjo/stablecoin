@@ -15,4 +15,5 @@ docs/
 
 .DS_STORE
 
-#node_modules
+#coverage report
+lcov.info
