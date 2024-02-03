@@ -289,4 +289,44 @@ contract EngineTest is Test {
         engineMock.redeemCollateralForStablecoin(address(collateralTokenMock), collateralAmount, burnAmount);
         vm.stopPrank();
     }
+
+    function test_burnStablecoinOnlySuccess() public {
+        aggregatorV3Mock.setLatestPrice(1);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        //ltv = 20k/30k = 66.6%
+        uint256 mintAmount = 20000;
+        uint256 collateralAmount = 30000;
+
+        vm.startPrank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+        //burn 10k new ltv = 10k/30k = 33.3% safer than before
+        uint256 stablecoinBurnAmount = 10000;
+        stablecoin.approve(address(engine), stablecoinBurnAmount);
+
+        engine.burnStablecoin(stablecoinBurnAmount);
+        vm.stopPrank();
+    }
+
+    function test_redeemCollateralSuccess() public {
+        aggregatorV3Mock.setLatestPrice(1);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        //ltv = 10k/30k = 33.3%
+        uint256 mintAmount = 10000;
+        uint256 collateralAmount = 30000;
+
+        vm.startPrank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+        //redeem 10k collateral, increase ltv from 33.3% to 10k/20k = 50% 
+        uint256 collateralWithdrawalAmount = 10000;
+        stablecoin.approve(address(engine), collateralWithdrawalAmount);
+
+        engine.redeemCollateral(address(collateralTokenMock), collateralWithdrawalAmount);
+        vm.stopPrank();
+    }
 }
