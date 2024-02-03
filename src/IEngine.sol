@@ -32,12 +32,7 @@ interface IEngine {
     /**
      * Deposit stablecoins in exchange for users entire unhealthy collateral position at a discount.
      */
-    function liquidateEntirePosition(address user) external;
-
-    /**
-     * Deposit stablecoins in exchange for part of users unhealthy collateral position at a discount.
-     */
-    function liquidatePartialPosition(address user, address collateralToken, uint256 amountToCover) external;
+    function liquidateUserPosition(address user) external;
     
     /**
      * Check LTV Ratio for users position, to deteremine whether liquidation is possible.
