@@ -126,9 +126,9 @@ contract Engine is IEngine {
     }
 
     function burnStablecoin(
-        uint256 amount
+        uint256 burnAmount
     ) external {
-
+        _burnStablecoinForUser(msg.sender, burnAmount);
     }
 
     function liquidateEntirePosition(
@@ -178,6 +178,7 @@ contract Engine is IEngine {
         uint256 collateralAmount
     ) private {
         uint256 userCollateral = s_collateral[msg.sender][collateralToken];
+        
         if(userCollateral < collateralAmount){
             revert Engine__WithdrawalLimitExceeded();
         }
@@ -198,7 +199,9 @@ contract Engine is IEngine {
         if(!_checkPositionHealth(user)){
             revert Engine__UnhealthyPosition();
         }
+
         bool mintSuccess = i_stablecoin.mint(user, mintAmount);
+
         if(!mintSuccess){
             revert Engine__MintingError();
         }
@@ -208,9 +211,11 @@ contract Engine is IEngine {
         s_mintedCoins[user] -= burnAmount;
         i_stablecoin.approve(address(this), burnAmount);
         bool transferSuccess = i_stablecoin.transferFrom(msg.sender, address(this), burnAmount);
+
         if(!transferSuccess){
             revert Engine__BurnTransferFailed();
         }
+
         i_stablecoin.burn(burnAmount);
     }
 
@@ -224,20 +229,25 @@ contract Engine is IEngine {
      */
     function _checkPositionHealth(address user) private view returns(bool) {
         uint256 totalCollateral;
+
         for(uint256 index = 0; index < s_supportedTokens.length; index++){
             address token = s_supportedTokens[index];
             uint256 userCollateralPosition = s_collateral[user][token];
+
             if(userCollateralPosition > 0){
                 (,int256 tokenPrice,,,) = s_priceFeeds[token].latestRoundData();
                 uint256 normalisedTokenPrice = uint256(tokenPrice * 1e10);
                 totalCollateral += (normalisedTokenPrice * userCollateralPosition) / 1e18;
             }
         }
+        
         uint256 mintedCoins = s_mintedCoins[msg.sender];
+        
         if((totalCollateral == 0 && mintedCoins != 0) || 
         _calculatePositionThreshold(totalCollateral, mintedCoins) >= LTV_THRESHOLD){
             return false;
         }
+
         return true;
     }
 
