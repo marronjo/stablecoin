@@ -46,6 +46,7 @@ contract Engine is IEngine {
     error Engine__BurnTransferFailed();
     error Engine__TokenNotAllowListed();
     error Engine__WithdrawalLimitExceeded();
+    error Engine__LiquidationNotPermitted();
 
     //STATE VARIABLES
     mapping(address user => mapping(address token => uint256 amount)) private s_collateral;
@@ -114,35 +115,31 @@ contract Engine is IEngine {
     greaterThanZero(collateralAmount) 
     greaterThanZero(burnAmount) 
     {
-        _burnStablecoinForUser(msg.sender, burnAmount);
-        _removeCollateralFromUserPosition(collateralToken, collateralAmount);
+        _burnStablecoinForUser(msg.sender, burnAmount,msg.sender);
+        _removeCollateralFromUserPosition(msg.sender, collateralToken, collateralAmount, msg.sender);
     }
 
     function redeemCollateral(
         address collateralToken, 
         uint256 collateralAmount
-    ) external {
-        _removeCollateralFromUserPosition(collateralToken, collateralAmount);
+    ) external 
+    greaterThanZero(collateralAmount) 
+    {
+        _removeCollateralFromUserPosition(msg.sender, collateralToken, collateralAmount, msg.sender);
     }
 
     function burnStablecoin(
         uint256 burnAmount
-    ) external {
-        _burnStablecoinForUser(msg.sender, burnAmount);
+    ) external 
+    greaterThanZero(burnAmount) 
+    {
+        _burnStablecoinForUser(msg.sender, burnAmount, msg.sender);
     }
 
-    function liquidateEntirePosition(
+    function liquidateUserPosition(
         address user
     ) external {
-
-    }
-
-    function liquidatePartialPosition(
-        address user, 
-        address collateralToken, 
-        uint256 amountToCover
-    ) external {
-
+        _liquidateUserPosition(user);
     }
 
     function getHealthFactor(
@@ -174,21 +171,23 @@ contract Engine is IEngine {
     }
 
     function _removeCollateralFromUserPosition(
+        address user,
         address collateralToken,
-        uint256 collateralAmount
+        uint256 collateralAmount,
+        address receiver
     ) private {
-        uint256 userCollateral = s_collateral[msg.sender][collateralToken];
-        
+        uint256 userCollateral = s_collateral[user][collateralToken];
+
         if(userCollateral < collateralAmount){
             revert Engine__WithdrawalLimitExceeded();
         }
-        s_collateral[msg.sender][collateralToken] -= collateralAmount;
+        s_collateral[user][collateralToken] -= collateralAmount;
 
-        if(!_checkPositionHealth(msg.sender)){
+        if(!_checkPositionHealth(user)){
             revert Engine__UnhealthyPosition();
         }
         
-        bool successfulWithdrawal = IERC20(collateralToken).transferFrom(address(this), msg.sender, collateralAmount);
+        bool successfulWithdrawal = IERC20(collateralToken).transferFrom(address(this), receiver, collateralAmount);
         if(!successfulWithdrawal){
             revert Engine__WithdrawalFailed();
         }
@@ -207,16 +206,34 @@ contract Engine is IEngine {
         }
     }
 
-    function _burnStablecoinForUser(address user, uint256 burnAmount) private {
+    function _burnStablecoinForUser(address user, uint256 burnAmount, address sender) private {
         s_mintedCoins[user] -= burnAmount;
         i_stablecoin.approve(address(this), burnAmount);
-        bool transferSuccess = i_stablecoin.transferFrom(msg.sender, address(this), burnAmount);
+        bool transferSuccess = i_stablecoin.transferFrom(sender, address(this), burnAmount);
 
         if(!transferSuccess){
             revert Engine__BurnTransferFailed();
         }
 
         i_stablecoin.burn(burnAmount);
+    }
+
+    function _liquidateUserPosition(address user) private {
+        if(_checkPositionHealth(user)){
+            revert Engine__LiquidationNotPermitted();
+        }
+
+        uint256 userStablecoinPosition = s_mintedCoins[user];
+        _burnStablecoinForUser(user, userStablecoinPosition, msg.sender);
+        for(uint256 index; index < s_supportedTokens.length;){
+            address token = s_supportedTokens[index];
+            uint256 userCollateralPosition = s_collateral[user][token];
+            
+            if(userCollateralPosition > 0){
+                _removeCollateralFromUserPosition(user, token, userCollateralPosition, msg.sender);
+            }
+            unchecked{index++;}
+        }
     }
 
     /**
