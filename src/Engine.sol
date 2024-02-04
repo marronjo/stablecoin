@@ -142,10 +142,10 @@ contract Engine is IEngine {
         _liquidateUserPosition(user);
     }
 
-    function getHealthFactor(
+    function getUserLtv(
         address user
-    ) external view {
-
+    ) external view returns(uint256 userLtv) {
+        (,userLtv) = _checkPositionLtv(user);
     }
 
     function addAllowListedToken(address token, address priceFeed) external {
@@ -183,7 +183,7 @@ contract Engine is IEngine {
         }
         s_collateral[user][collateralToken] -= collateralAmount;
 
-        if(!_checkPositionHealth(user)){
+        if(!_checkPositionHealthy(user)){
             revert Engine__UnhealthyPosition();
         }
         
@@ -195,7 +195,7 @@ contract Engine is IEngine {
 
     function _mintStablecoinToUser(address user, uint256 mintAmount) private {
         s_mintedCoins[user] += mintAmount;
-        if(!_checkPositionHealth(user)){
+        if(!_checkPositionHealthy(user)){
             revert Engine__UnhealthyPosition();
         }
 
@@ -219,7 +219,7 @@ contract Engine is IEngine {
     }
 
     function _liquidateUserPosition(address user) private {
-        if(_checkPositionHealth(user)){
+        if(_checkPositionHealthy(user)){
             revert Engine__LiquidationNotPermitted();
         }
 
@@ -237,15 +237,20 @@ contract Engine is IEngine {
         }
     }
 
+    function _checkPositionHealthy(address user)  private view returns(bool healthy) {
+        (healthy,) = _checkPositionLtv(user);
+    }
+
     /**
      * Method used to check if users position is in a healthy state.
      * The safe Loan To Value (LTV) ratio for this protocol is <70% 
      * e.g. The user can only mint strictly less than 70% of their collateral
      * 
      * @param user address used for position check
-     * @return true if user's position is healthy, false otherwise
+     * @return healthy true if user's position is healthy, false otherwise
+     * @return userLtv the users Loan to Value ratio as a percentage (%)
      */
-    function _checkPositionHealth(address user) private view returns(bool) {
+    function _checkPositionLtv(address user) private view returns(bool, uint256 userLtv) {
         uint256 totalCollateral;
 
         for(uint256 index = 0; index < s_supportedTokens.length; index++){
@@ -259,13 +264,12 @@ contract Engine is IEngine {
             }
         }
         uint256 mintedCoins = s_mintedCoins[user];
+        userLtv = _calculateUserLTV(totalCollateral, mintedCoins);
         
-        if((totalCollateral == 0 && mintedCoins != 0) || 
-        _calculatePositionThreshold(totalCollateral, mintedCoins) >= LTV_THRESHOLD){
-            return false;
+        if((totalCollateral == 0 && mintedCoins != 0) || userLtv >= LTV_THRESHOLD){
+            return(false, userLtv);
         }
-
-        return true;
+        return(true, userLtv);
     }
 
     /**
@@ -274,9 +278,11 @@ contract Engine is IEngine {
      * @param totalCollateral total value of users collateral position
      * @return ltv ratio of mintAmount / collateral as a percentage
      */
-    function _calculatePositionThreshold(uint256 totalCollateral, uint256 mintedCoins) private pure returns(uint256) {
+    function _calculateUserLTV(uint256 totalCollateral, uint256 mintedCoins) private pure returns(uint256) {
         if(mintedCoins == 0 && totalCollateral == 0){
             return 0;
+        }else if(mintedCoins != 0 && totalCollateral == 0){
+            return 2**256 - 1; //infinite LTV ... l/v = l/0 = infinity
         }
         return (mintedCoins * 100) / totalCollateral;
     }

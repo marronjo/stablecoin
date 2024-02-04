@@ -357,4 +357,46 @@ contract EngineTest is Test {
         engine.liquidateUserPosition(user);
         vm.stopPrank();
     }
+
+    function test_liquidationFailedHealthyPosition() public {
+        aggregatorV3Mock.setLatestPrice(100);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        //ltv = 10k/20k = 50%
+        uint256 mintAmount = 10000;
+        uint256 collateralAmount = 200;
+
+        vm.prank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+
+        uint256 safeCollateralAmount = 2000;
+
+        vm.startPrank(otherUser);
+        engine.mintStablecoin(address(collateralTokenMock), safeCollateralAmount, mintAmount);
+
+        //liquidate first users position
+        stablecoin.approve(address(engine), mintAmount);
+
+        vm.expectRevert(Engine.Engine__LiquidationNotPermitted.selector);
+
+        engine.liquidateUserPosition(user);
+        vm.stopPrank();
+    }
+
+    function test_getCorrectUserLtv() public {
+        aggregatorV3Mock.setLatestPrice(100);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        //ltv = 10k/20k = 50%
+        uint256 mintAmount = 10000;
+        uint256 collateralAmount = 200;
+
+        vm.prank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+        assertEq(50, engine.getUserLtv(user));  //50% ltv
+    }
 }

@@ -37,6 +37,6 @@ interface IEngine {
     /**
      * Check LTV Ratio for users position, to deteremine whether liquidation is possible.
      */
-    function getHealthFactor(address user) external view;
+    function getUserLtv(address user) external view returns(uint256);
 
 }
