@@ -25,6 +25,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+        id: install
 
       - name: Run Forge build
         run: |
@@ -40,6 +41,7 @@ jobs:
       - name: Test Coverage
         run: |
           forge coverage --report lcov
+        id: report
       
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
