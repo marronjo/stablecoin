@@ -63,6 +63,17 @@ contract Engine is IEngine {
 
     Stablecoin public immutable i_stablecoin;
 
+    //EVENTS
+    event CoinsMinted(address indexed user , uint256 amount);
+
+    event CollateralDeposited(address indexed user, address indexed token, uint256 amount);
+
+    event CoinsBurned(address indexed user , uint256 amount);
+
+    event CollateralWithdrawn(address indexed user, address indexed receiver, address indexed token, uint256 amount);
+
+    event Liquidation(address indexed user, address indexed liquidator, uint256 amount);
+
     //MODIFIERS
     modifier greaterThanZero(uint256 amount){
         if(amount == 0){
@@ -165,6 +176,8 @@ contract Engine is IEngine {
     ) private {
         s_collateral[msg.sender][collateralToken] += collateralAmount;
         bool successfulDeposit = IERC20(collateralToken).transferFrom(msg.sender, address(this), collateralAmount);
+        emit CollateralDeposited(msg.sender, collateralToken, collateralAmount);
+
         if(!successfulDeposit){
             revert Engine__DepositFailed();
         }
@@ -188,6 +201,8 @@ contract Engine is IEngine {
         }
         
         bool successfulWithdrawal = IERC20(collateralToken).transferFrom(address(this), receiver, collateralAmount);
+        emit CollateralWithdrawn(user, receiver, collateralToken, collateralAmount);
+
         if(!successfulWithdrawal){
             revert Engine__WithdrawalFailed();
         }
@@ -204,6 +219,8 @@ contract Engine is IEngine {
         if(!mintSuccess){
             revert Engine__MintingError();
         }
+
+        emit CoinsMinted(user, mintAmount);
     }
 
     function _burnStablecoinForUser(address user, uint256 burnAmount, address sender) private {
@@ -216,6 +233,7 @@ contract Engine is IEngine {
         }
 
         i_stablecoin.burn(burnAmount);
+        emit CoinsBurned(user, burnAmount); 
     }
 
     function _liquidateUserPosition(address user) private {
@@ -235,6 +253,7 @@ contract Engine is IEngine {
             }
             unchecked{index++;}
         }
+        emit Liquidation(user, msg.sender, userStablecoinPosition);
     }
 
     function _checkPositionHealthy(address user)  private view returns(bool healthy) {
