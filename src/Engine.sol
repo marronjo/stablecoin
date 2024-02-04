@@ -225,6 +225,7 @@ contract Engine is IEngine {
 
         uint256 userStablecoinPosition = s_mintedCoins[user];
         _burnStablecoinForUser(user, userStablecoinPosition, msg.sender);
+
         for(uint256 index; index < s_supportedTokens.length;){
             address token = s_supportedTokens[index];
             uint256 userCollateralPosition = s_collateral[user][token];
@@ -257,8 +258,7 @@ contract Engine is IEngine {
                 totalCollateral += (normalisedTokenPrice * userCollateralPosition) / 1e18;
             }
         }
-        
-        uint256 mintedCoins = s_mintedCoins[msg.sender];
+        uint256 mintedCoins = s_mintedCoins[user];
         
         if((totalCollateral == 0 && mintedCoins != 0) || 
         _calculatePositionThreshold(totalCollateral, mintedCoins) >= LTV_THRESHOLD){

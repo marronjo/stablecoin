@@ -25,6 +25,7 @@ contract EngineTest is Test {
 
     address private owner = makeAddr("owner");
     address private user = makeAddr("user");
+    address private otherUser = makeAddr("otherUser");
 
     function setUp() public {
         vm.startBroadcast(owner);
@@ -327,6 +328,33 @@ contract EngineTest is Test {
         stablecoin.approve(address(engine), collateralWithdrawalAmount);
 
         engine.redeemCollateral(address(collateralTokenMock), collateralWithdrawalAmount);
+        vm.stopPrank();
+    }
+
+    function test_liquidateUserPosition() public {
+        aggregatorV3Mock.setLatestPrice(100);
+        engine.addAllowListedToken(address(collateralTokenMock), address(aggregatorV3Mock));
+        
+        //ltv = 10k/20k = 50%
+        uint256 mintAmount = 10000;
+        uint256 collateralAmount = 200;
+
+        vm.prank(user);
+        engine.mintStablecoin(address(collateralTokenMock), collateralAmount, mintAmount);
+        assertEq(mintAmount, engine.getUserStablecoinPosition(user));
+
+
+        uint256 safeCollateralAmount = 2000;
+
+        vm.startPrank(otherUser);
+        engine.mintStablecoin(address(collateralTokenMock), safeCollateralAmount, mintAmount);
+
+        //collateral value drops to 65 increasing ltv to ~75% for first 'user'
+        aggregatorV3Mock.setLatestPrice(65);
+
+        //liquidate first users position
+        stablecoin.approve(address(engine), mintAmount);
+        engine.liquidateUserPosition(user);
         vm.stopPrank();
     }
 }
